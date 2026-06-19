@@ -1,23 +1,55 @@
-import { DeductionItem, FeedbackItem, CaseData, Finding } from "@/types";
+import { DeductionItem, FeedbackItem, CaseData, Finding, OperationStep } from "@/types";
+
+export const getStepName = (step: string): string => {
+  const names: Record<string, string> = {
+    centric: "正中咬合检查",
+    protrusive: "前伸运动检查",
+    lateral: "侧方运动检查",
+    findings: "征象记录判断",
+  };
+  return names[step] || step;
+};
 
 export const calculateSequenceScore = (
-  selectedSequence: string[],
+  finalSequence: string[],
   correctSequence: string[],
+  feedbackHistory: FeedbackItem[],
   totalPoints: number
 ): { score: number; deductions: DeductionItem[] } => {
   const deductions: DeductionItem[] = [];
   let score = totalPoints;
-  const pointsPerStep = Math.floor(totalPoints / (correctSequence.length - 1));
+  const operationSteps = correctSequence.length - 1;
+  const pointsPerStep = Math.floor(totalPoints / operationSteps);
+  const remainder = totalPoints - pointsPerStep * operationSteps;
 
-  for (let i = 0; i < selectedSequence.length; i++) {
-    if (i < correctSequence.length - 1 && selectedSequence[i] !== correctSequence[i]) {
-      const deduction = pointsPerStep;
+  for (let i = 0; i < operationSteps; i++) {
+    const correctStep = correctSequence[i];
+    const stepFeedback = feedbackHistory.filter((f) => f.step === i + 1);
+    const wrongAttempts = stepFeedback.filter((f) => !f.correct).length;
+    const hasCorrect = stepFeedback.some((f) => f.correct);
+
+    if (!hasCorrect) {
+      const deduction = i === operationSteps - 1 ? pointsPerStep + remainder : pointsPerStep;
       score -= deduction;
       deductions.push({
-        reason: `第 ${i + 1} 步检查顺序错误`,
+        reason: `未完成第 ${i + 1} 步：${getStepName(correctStep)}`,
         points: deduction,
-        correctAction: `正确的第 ${i + 1} 步应该是：${getStepName(correctSequence[i])}`,
+        correctAction: `按照规范流程，第 ${i + 1} 步应先进行：${getStepName(correctStep)}`,
       });
+    } else {
+      const penaltyEach = Math.ceil(pointsPerStep / 3);
+      const totalPenalty = Math.min(pointsPerStep, wrongAttempts * penaltyEach);
+      if (totalPenalty > 0) {
+        deductions.push({
+          reason: `第 ${i + 1} 步「${getStepName(correctStep)}」选错 ${wrongAttempts} 次后才答对`,
+          points: totalPenalty,
+          correctAction: `标准流程为：${correctSequence
+            .slice(0, operationSteps)
+            .map((s, idx) => `${idx + 1}.${getStepName(s)}`)
+            .join(" → ")}`,
+        });
+        score -= totalPenalty;
+      }
     }
   }
 
@@ -36,34 +68,32 @@ export const calculateFindingsScore = (
   const missingFindings = requiredFindings.filter((f) => !selectedFindings.includes(f.id));
   const wrongSelections = decoyFindings.filter((f) => selectedFindings.includes(f.id));
 
-  if (missingFindings.length > 0) {
-    missingFindings.forEach((f) => {
-      deductions.push({
-        reason: `遗漏征象：${f.name}`,
-        points: f.points,
-        correctAction: f.description,
-      });
-    });
-  }
-
-  if (wrongSelections.length > 0) {
-    wrongSelections.forEach((f) => {
-      const penalty = Math.min(5, Math.floor(totalPossiblePoints / requiredFindings.length / 2));
-      score -= penalty;
-      deductions.push({
-        reason: `错误选择：${f.name}`,
-        points: penalty,
-        correctAction: `该征象在本病例中不存在，请重新鉴别：${f.description}`,
-      });
-    });
-  }
-
   const correctlyIdentified = requiredFindings.filter((f) => selectedFindings.includes(f.id));
   correctlyIdentified.forEach((f) => {
     score += f.points;
   });
 
-  return { score: Math.max(0, score), deductions };
+  missingFindings.forEach((f) => {
+    deductions.push({
+      reason: `遗漏征象：${f.name}`,
+      points: f.points,
+      correctAction: f.description,
+    });
+  });
+
+  if (wrongSelections.length > 0) {
+    const wrongPenalty = Math.ceil(totalPossiblePoints / 10);
+    wrongSelections.forEach((f) => {
+      deductions.push({
+        reason: `错误选择：${f.name}`,
+        points: wrongPenalty,
+        correctAction: `本病例中不存在「${f.name}」征象，请鉴别：${f.description}`,
+      });
+      score -= wrongPenalty;
+    });
+  }
+
+  return { score: Math.max(0, Math.min(totalPossiblePoints, score)), deductions };
 };
 
 export const getScoreGrade = (score: number): { grade: string; color: string } => {
@@ -71,16 +101,6 @@ export const getScoreGrade = (score: number): { grade: string; color: string } =
   if (score >= 75) return { grade: "良好", color: "text-blue-600" };
   if (score >= 60) return { grade: "及格", color: "text-amber-600" };
   return { grade: "不及格", color: "text-red-600" };
-};
-
-export const getStepName = (step: string): string => {
-  const names: Record<string, string> = {
-    centric: "正中咬合检查",
-    protrusive: "前伸运动检查",
-    lateral: "侧方运动检查",
-    findings: "征象记录判断",
-  };
-  return names[step] || step;
 };
 
 export const createSequenceFeedback = (
@@ -111,7 +131,7 @@ export const createSequenceFeedback = (
     return {
       step: stepIndex + 1,
       correct: false,
-      message: `✗ 检查顺序有误。第一步应该从${getStepName(correctStep)}开始，请按正确顺序检查。`,
+      message: `✗ 顺序有误。当前第 ${stepIndex + 1} 步应先进行「${getStepName(correctStep)}」，请重新选择。`,
     };
   }
 };
@@ -153,4 +173,68 @@ export const getFindingsDialoguePrompt = (
   }
 
   return undefined;
+};
+
+export const generateReviewReport = (
+  caseData: CaseData,
+  selectedSequence: string[],
+  selectedFindings: string[]
+): string => {
+  const operationSteps = caseData.correctSequence.length - 1;
+  const correctOps = caseData.correctSequence.slice(0, operationSteps);
+  const correctRequiredFindings = caseData.requiredFindings.filter((f) =>
+    selectedFindings.includes(f.id)
+  );
+  const missedFindings = caseData.requiredFindings.filter(
+    (f) => !selectedFindings.includes(f.id)
+  );
+
+  const seqNames = correctOps.map((s) => getStepName(s)).join(" → ");
+
+  let report = `======= ${caseData.title} - 咬合评估复盘报告 =======\n\n`;
+  report += `【患者基本信息】\n`;
+  report += `${caseData.patientInfo.age}，${caseData.patientInfo.gender}，${caseData.patientInfo.occupation}\n`;
+  report += `主诉：${caseData.chiefComplaint}\n\n`;
+
+  report += `【标准检查顺序】\n${seqNames}\n`;
+  if (selectedSequence.length > 0) {
+    const mySeq = selectedSequence.map((s) => getStepName(s)).join(" → ");
+    report += `我的操作顺序：${mySeq}\n`;
+  }
+  report += `\n`;
+
+  report += `【已识别的异常征象】\n`;
+  if (correctRequiredFindings.length > 0) {
+    correctRequiredFindings.forEach((f, idx) => {
+      report += `${idx + 1}. ${f.name}：${f.description}\n`;
+    });
+  } else {
+    report += `（未正确识别征象）\n`;
+  }
+  report += `\n`;
+
+  report += `【建议补充识别】\n`;
+  if (missedFindings.length > 0) {
+    missedFindings.forEach((f, idx) => {
+      report += `${idx + 1}. ${f.name}：${f.description}\n`;
+    });
+  } else {
+    report += `（征象已识别完整）\n`;
+  }
+  report += `\n`;
+
+  report += `【推荐诊室问诊句】\n`;
+  const usedPrompts: string[] = [];
+  caseData.dialoguePrompts.forEach((dp) => {
+    if (dp.text && !usedPrompts.includes(dp.text)) {
+      usedPrompts.push(dp.text);
+      report += `· "${dp.text}"\n`;
+    }
+  });
+  report += `\n`;
+
+  report += `【标准评估摘要】\n${caseData.standardSummary}\n`;
+  report += `\n======= 报告结束 =======`;
+
+  return report;
 };

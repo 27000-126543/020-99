@@ -5,6 +5,7 @@ import { useGameStore } from "@/store/useGameStore";
 import { ScoreRing } from "@/components/ScoreRing";
 import { DeductionList } from "@/components/DeductionList";
 import { FindingCard } from "@/components/FindingCard";
+import { ReviewReport } from "@/components/ReviewReport";
 import {
   ArrowLeft,
   Home,
@@ -22,7 +23,7 @@ export const ResultPage = () => {
   const caseId = parseInt(id || "1");
   const caseData = getCaseById(caseId);
 
-  const { score, deductions, selectedFindings, resetGame } = useGameStore();
+  const { score, deductions, selectedFindings, selectedSequence, resetGame } = useGameStore();
 
   useEffect(() => {
     if (!caseData) {
@@ -247,6 +248,14 @@ export const ResultPage = () => {
               </div>
             </div>
           )}
+        </div>
+
+        <div className="mb-8">
+          <ReviewReport
+            caseData={caseData}
+            selectedSequence={selectedSequence}
+            selectedFindings={selectedFindings}
+          />
         </div>
 
         <div className="flex justify-center gap-4 pb-8">

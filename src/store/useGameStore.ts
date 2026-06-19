@@ -70,16 +70,22 @@ export const useGameStore = create<GameStore>()(
 
         const feedback = createSequenceFeedback(currentStep, step, correctStep, caseData);
 
-        const newSelectedSequence = [...selectedSequence, step];
-        const newCurrentStep = feedback.correct ? currentStep + 1 : currentStep;
-
-        set((state) => ({
-          selectedSequence: newSelectedSequence,
-          currentStep: newCurrentStep,
-          feedbackHistory: [...state.feedbackHistory, feedback],
-          currentFeedback: feedback,
-          showFeedback: true,
-        }));
+        if (feedback.correct) {
+          const newSelectedSequence = [...selectedSequence, step];
+          set((state) => ({
+            selectedSequence: newSelectedSequence,
+            currentStep: currentStep + 1,
+            feedbackHistory: [...state.feedbackHistory, feedback],
+            currentFeedback: feedback,
+            showFeedback: true,
+          }));
+        } else {
+          set((state) => ({
+            feedbackHistory: [...state.feedbackHistory, feedback],
+            currentFeedback: feedback,
+            showFeedback: true,
+          }));
+        }
       },
 
       toggleFinding: (findingId: string) => {
@@ -129,11 +135,12 @@ export const useGameStore = create<GameStore>()(
       },
 
       completeCase: (caseData: CaseData) => {
-        const { selectedSequence, selectedFindings, userProgress } = get();
+        const { selectedSequence, selectedFindings, userProgress, feedbackHistory } = get();
 
         const sequenceResult = calculateSequenceScore(
           selectedSequence,
           caseData.correctSequence,
+          feedbackHistory,
           caseData.sequencePoints
         );
 
@@ -146,11 +153,12 @@ export const useGameStore = create<GameStore>()(
         const totalScore = sequenceResult.score + findingsResult.score;
         const allDeductions = [...sequenceResult.deductions, ...findingsResult.deductions];
 
+        const existingProgress = userProgress.find((p) => p.caseId === caseData.id);
         const newProgress: UserProgress = {
           caseId: caseData.id,
           score: totalScore,
           completed: true,
-          attempts: (userProgress.find((p) => p.caseId === caseData.id)?.attempts || 0) + 1,
+          attempts: (existingProgress?.attempts || 0) + 1,
         };
 
         set((state) => ({

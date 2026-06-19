@@ -33,9 +33,11 @@ export interface DialoguePrompt {
 
 export interface UserProgress {
   caseId: number;
-  score: number;
+  bestScore: number;
+  lastScore: number;
   completed: boolean;
   attempts: number;
+  lastPlayedAt: number;
 }
 
 export interface GameState {

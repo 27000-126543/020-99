@@ -12,7 +12,14 @@ import {
   Info,
   Users,
   Play,
+  Table,
+  Trophy,
+  Calendar,
+  TrendingUp,
+  BarChart3,
+  Clock,
 } from "lucide-react";
+import { getScoreGrade } from "@/utils/scoring";
 
 export const HomePage = () => {
   const navigate = useNavigate();
@@ -22,7 +29,7 @@ export const HomePage = () => {
   const completedCount = userProgress.filter((p) => p.completed).length;
   const avgScore =
     userProgress.length > 0
-      ? Math.round(userProgress.reduce((sum, p) => sum + p.score, 0) / userProgress.length)
+      ? Math.round(userProgress.reduce((sum, p) => sum + (p.lastScore || 0), 0) / userProgress.length)
       : 0;
 
   const handleCaseClick = (caseId: number) => {
@@ -124,6 +131,218 @@ export const HomePage = () => {
               </div>
             </div>
             <p className="text-sm text-gray-500">熟能生巧，多练多进步</p>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8 mb-12 overflow-hidden">
+          <div className="flex items-start justify-between mb-8">
+            <div className="flex items-start gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
+                <BarChart3 className="w-7 h-7 text-white" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">班级练习记录</h2>
+                <p className="text-gray-600">
+                  查看各病例最近成绩与历史最佳，追踪训练效果。重新练习后最近成绩更新，最好成绩保留。
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 rounded-xl">
+                <TrendingUp className="w-4 h-4 text-indigo-600" />
+                <span className="text-indigo-700 font-medium">重新练习更新最近成绩</span>
+              </div>
+              <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 rounded-xl">
+                <Trophy className="w-4 h-4 text-amber-600" />
+                <span className="text-amber-700 font-medium">历史最佳永久保留</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto -mx-2 px-2">
+            <table className="w-full min-w-[720px] border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-y-2 border-slate-100">
+                  <th className="text-left py-4 px-5 rounded-tl-2xl">
+                    <div className="flex items-center gap-2 text-slate-600 font-bold">
+                      <Table className="w-4 h-4" />
+                      病例名称
+                    </div>
+                  </th>
+                  <th className="text-center py-4 px-4">
+                    <div className="flex items-center justify-center gap-2 text-slate-600 font-bold">
+                      <TrendingUp className="w-4 h-4" />
+                      最近成绩
+                    </div>
+                  </th>
+                  <th className="text-center py-4 px-4">
+                    <div className="flex items-center justify-center gap-2 text-slate-600 font-bold">
+                      <Trophy className="w-4 h-4" />
+                      最好成绩
+                    </div>
+                  </th>
+                  <th className="text-center py-4 px-4">
+                    <div className="flex items-center justify-center gap-2 text-slate-600 font-bold">
+                      <Award className="w-4 h-4" />
+                      尝试次数
+                    </div>
+                  </th>
+                  <th className="text-center py-4 px-4 rounded-tr-2xl">
+                    <div className="flex items-center justify-center gap-2 text-slate-600 font-bold">
+                      <Clock className="w-4 h-4" />
+                      上次练习时间
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {cases.map((caseData, idx) => {
+                  const progress = userProgress.find((p) => p.caseId === caseData.id);
+                  const lastGrade = progress?.lastScore ? getScoreGrade(progress.lastScore) : null;
+                  const bestGrade = progress?.bestScore ? getScoreGrade(progress.bestScore) : null;
+                  const isImproved = progress && progress.bestScore > 0 && progress.lastScore >= progress.bestScore && progress.lastScore > 0;
+                  const hasProgress = !!progress;
+
+                  const formatDate = (ts: number) => {
+                    try {
+                      const d = new Date(ts);
+                      const now = new Date();
+                      const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+                      if (diffDays === 0) return "今天";
+                      if (diffDays === 1) return "昨天";
+                      if (diffDays < 7) return `${diffDays} 天前`;
+                      return d.toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" });
+                    } catch {
+                      return "-";
+                    }
+                  };
+
+                  return (
+                    <tr
+                      key={caseData.id}
+                      className={`border-b border-gray-50 hover:bg-slate-50/80 transition-colors ${idx === cases.length - 1 ? "border-b-0" : ""}`}
+                    >
+                      <td className="py-5 px-5">
+                        <div className="flex items-center gap-4">
+                          <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold text-lg flex-shrink-0
+                            ${hasProgress
+                              ? "bg-gradient-to-br from-emerald-400 to-emerald-600 text-white"
+                              : "bg-gradient-to-br from-gray-200 to-gray-300 text-gray-600"
+                            }`}>
+                            {caseData.id}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-bold text-gray-800 text-base truncate">{caseData.title}</div>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium
+                                ${caseData.difficulty === "easy" ? "bg-emerald-100 text-emerald-700" : caseData.difficulty === "medium" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"}`}>
+                                {caseData.difficulty === "easy" ? "入门" : caseData.difficulty === "medium" ? "进阶" : "挑战"}
+                              </span>
+                              <span className="text-xs text-gray-500 truncate">
+                                {caseData.patientInfo.age} · {caseData.patientInfo.gender} · {caseData.requiredFindings.length} 项征象
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-5 px-4 text-center">
+                        {hasProgress && progress?.lastScore > 0 ? (
+                          <div className="inline-flex flex-col items-center">
+                            <div className="flex items-center gap-2">
+                              <span className={`text-2xl font-bold ${lastGrade?.color || "text-gray-800"}`}>
+                                {progress?.lastScore}
+                              </span>
+                              {isImproved && (
+                                <span className="inline-flex items-center px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full">
+                                  ↑ 最佳
+                                </span>
+                              )}
+                            </div>
+                            <span className={`text-xs font-medium mt-0.5 ${lastGrade?.color || "text-gray-500"}`}>
+                              {lastGrade?.grade || "-"}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-300 font-bold text-xl">-</span>
+                        )}
+                      </td>
+                      <td className="py-5 px-4 text-center">
+                        {hasProgress && progress?.bestScore > 0 ? (
+                          <div className="inline-flex flex-col items-center">
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200">
+                              <Trophy className="w-4 h-4 text-amber-500 fill-amber-200" />
+                              <span className={`text-2xl font-bold ${bestGrade?.color || "text-gray-800"}`}>
+                                {progress?.bestScore}
+                              </span>
+                            </div>
+                            <span className={`text-xs font-medium mt-1 ${bestGrade?.color || "text-gray-500"}`}>
+                              {bestGrade?.grade || "-"}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-300 font-bold text-xl">-</span>
+                        )}
+                      </td>
+                      <td className="py-5 px-4 text-center">
+                        {hasProgress ? (
+                          <div className="inline-flex flex-col items-center">
+                            <span className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-slate-100 text-gray-800 font-bold text-xl">
+                              {progress?.attempts || 0}
+                            </span>
+                            <span className="text-xs text-gray-500 mt-1">次</span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-300 font-bold text-xl">-</span>
+                        )}
+                      </td>
+                      <td className="py-5 px-4 text-center">
+                        {hasProgress && progress?.lastPlayedAt ? (
+                          <div className="inline-flex flex-col items-center">
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 rounded-xl">
+                              <Calendar className="w-4 h-4 text-slate-500" />
+                              <span className="font-medium text-gray-700 text-sm">
+                                {formatDate(progress.lastPlayedAt)}
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-gray-300 font-bold text-xl">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 p-5 bg-gradient-to-r from-slate-50 via-blue-50 to-cyan-50 rounded-2xl border border-slate-200">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                <Info className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <h4 className="font-bold text-gray-800">小提示</h4>
+                <p className="text-sm text-gray-600">
+                  建议每个病例至少练习 3 次以上，形成肌肉记忆。每次练习争取提高 5-10 分，直到稳定在 90 分以上。
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-6 text-sm">
+              <div className="text-center">
+                <p className="text-3xl font-bold text-emerald-600">
+                  {userProgress.filter((p) => p.bestScore >= 90).length}
+                </p>
+                <p className="text-gray-500">优秀关卡</p>
+              </div>
+              <div className="w-px h-10 bg-gray-200" />
+              <div className="text-center">
+                <p className="text-3xl font-bold text-blue-600">
+                  {userProgress.reduce((s, p) => s + (p.attempts || 0), 0)}
+                </p>
+                <p className="text-gray-500">总练习次数</p>
+              </div>
+            </div>
           </div>
         </div>
 

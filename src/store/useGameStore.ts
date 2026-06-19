@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { GameState, FeedbackItem, DeductionItem, UserProgress, CaseData } from "@/types";
+import { GameState, FeedbackItem, UserProgress, CaseData, DeductionItem } from "@/types";
 import {
   calculateSequenceScore,
   calculateFindingsScore,
@@ -15,10 +15,11 @@ interface GameStore extends GameState {
   showFeedback: boolean;
 
   setCurrentCase: (caseId: number) => void;
+  forceSetCurrentCase: (caseId: number) => void;
   selectSequenceStep: (step: string, caseData: CaseData) => void;
   toggleFinding: (findingId: string) => void;
   confirmFindings: (caseData: CaseData) => void;
-  completeCase: (caseData: CaseData) => void;
+  completeCase: (caseData: CaseData) => { score: number; deductions: DeductionItem[] };
   resetGame: () => void;
   clearFeedback: () => void;
   resetProgress: () => void;
@@ -48,6 +49,30 @@ export const useGameStore = create<GameStore>()(
         set({
           ...initialState,
           currentCaseId: caseId,
+        });
+      },
+
+      forceSetCurrentCase: (caseId: number) => {
+        const existing = get().userProgress.find((p) => p.caseId === caseId);
+        const preserved = existing
+          ? {
+              caseId,
+              bestScore: existing.bestScore,
+              lastScore: existing.lastScore,
+              attempts: existing.attempts,
+              completed: existing.completed,
+              lastPlayedAt: existing.lastPlayedAt,
+            }
+          : null;
+
+        const newUserProgress = preserved
+          ? [...get().userProgress.filter((p) => p.caseId !== caseId), preserved]
+          : get().userProgress;
+
+        set({
+          ...initialState,
+          currentCaseId: caseId,
+          userProgress: newUserProgress,
         });
       },
 
@@ -154,11 +179,16 @@ export const useGameStore = create<GameStore>()(
         const allDeductions = [...sequenceResult.deductions, ...findingsResult.deductions];
 
         const existingProgress = userProgress.find((p) => p.caseId === caseData.id);
+        const previousBest = existingProgress?.bestScore || 0;
+        const previousAttempts = existingProgress?.attempts || 0;
+
         const newProgress: UserProgress = {
           caseId: caseData.id,
-          score: totalScore,
+          bestScore: Math.max(previousBest, totalScore),
+          lastScore: totalScore,
           completed: true,
-          attempts: (existingProgress?.attempts || 0) + 1,
+          attempts: previousAttempts + 1,
+          lastPlayedAt: Date.now(),
         };
 
         set((state) => ({
@@ -170,6 +200,8 @@ export const useGameStore = create<GameStore>()(
             newProgress,
           ],
         }));
+
+        return { score: totalScore, deductions: allDeductions };
       },
 
       resetGame: () => {
@@ -201,6 +233,20 @@ export const useGameStore = create<GameStore>()(
       partialize: (state) => ({
         userProgress: state.userProgress,
       }),
+      migrate: (persistedState: any, version) => {
+        if (persistedState && persistedState.userProgress) {
+          const migratedProgress = persistedState.userProgress.map((p: any) => ({
+            caseId: p.caseId,
+            bestScore: p.bestScore ?? p.score ?? 0,
+            lastScore: p.lastScore ?? p.score ?? 0,
+            completed: p.completed ?? false,
+            attempts: p.attempts ?? (p.completed ? 1 : 0),
+            lastPlayedAt: p.lastPlayedAt ?? Date.now(),
+          }));
+          return { ...persistedState, userProgress: migratedProgress };
+        }
+        return persistedState;
+      },
     }
   )
 );

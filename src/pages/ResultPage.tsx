@@ -255,6 +255,8 @@ export const ResultPage = () => {
             caseData={caseData}
             selectedSequence={selectedSequence}
             selectedFindings={selectedFindings}
+            score={score}
+            deductions={deductions}
           />
         </div>
 

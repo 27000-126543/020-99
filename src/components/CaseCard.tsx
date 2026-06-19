@@ -22,7 +22,10 @@ export const CaseCard = ({ caseData, onClick, index }: CaseCardProps) => {
   const isLocked = index > 0 && !allProgress.some((p) => p.caseId === caseData.id - 1 && p.completed);
 
   const difficulty = difficultyConfig[caseData.difficulty];
-  const grade = progress ? getScoreGrade(progress.score) : null;
+  const lastScore = progress?.lastScore ?? 0;
+  const bestScore = progress?.bestScore ?? 0;
+  const grade = progress ? getScoreGrade(lastScore) : null;
+  const bestGrade = progress ? getScoreGrade(bestScore) : null;
 
   return (
     <div
@@ -71,11 +74,23 @@ export const CaseCard = ({ caseData, onClick, index }: CaseCardProps) => {
           {progress?.completed && grade && (
             <div className="text-right">
               <div className={`text-2xl font-bold ${grade.color}`}>
-                {progress.score}
+                {lastScore}
               </div>
               <div className={`text-sm font-medium ${grade.color}`}>
                 {grade.grade}
               </div>
+              {bestScore > 0 && bestScore !== lastScore && (
+                <div className={`text-xs mt-1 font-medium ${bestGrade.color} opacity-80 flex items-center justify-end gap-1`}>
+                  <Trophy className="w-3 h-3" />
+                  历史最佳 {bestScore}
+                </div>
+              )}
+              {bestScore > 0 && bestScore === lastScore && (
+                <div className={`text-xs mt-1 font-medium ${bestGrade.color} opacity-80 flex items-center justify-end gap-1`}>
+                  <Trophy className="w-3 h-3" />
+                  历史最佳
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -95,7 +110,7 @@ export const CaseCard = ({ caseData, onClick, index }: CaseCardProps) => {
               <Star
                 key={star}
                 className={`w-4 h-4 ${
-                  progress?.score && progress.score >= 60 + star * 10
+                  progress?.lastScore && progress.lastScore >= 60 + star * 10
                     ? "text-amber-400 fill-amber-400"
                     : "text-gray-200"
                 }`}
